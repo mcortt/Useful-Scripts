@@ -18,3 +18,6 @@ Simple Base64 Encoder/Decoder.
 
 * base64.py -
 Simple Base64 Encoder/Decoder written in python.
+
+* credential_dump_mass_valdiation.ps1 - 
+Select a CSV (username,password) of a credential dump. This will lookup SAMAccountName from emails if needed, and test the creds for validity. Will dump several files with the results. 
