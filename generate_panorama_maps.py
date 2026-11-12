@@ -11,31 +11,101 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <meta charset="utf-8">
   <title>{title}</title>
   <style>
-    html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; }}
+    html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1e1e1e; font-family: system-ui, sans-serif; }}
+    #toolbar {{
+      position: fixed; top: 12px; left: 12px; z-index: 1000;
+      background: rgba(30, 30, 30, 0.92); border: 1px solid #444; border-radius: 6px;
+      padding: 8px 12px; display: flex; gap: 10px; align-items: center; color: #eee; font-size: 13px;
+    }}
+    #toolbar button {{
+      background: #2d2d2d; color: #eee; border: 1px solid #555; border-radius: 4px;
+      padding: 4px 10px; cursor: pointer;
+    }}
+    #toolbar button:hover {{ background: #3e3e3e; }}
+    #toolbar button.active {{ background: #0066cc; border-color: #3399ff; }}
     #diagram, #diagram svg {{ width: 100%; height: 100%; }}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({{
-      startOnLoad: false,
-      theme: 'dark',
-      maxEdges: 10000,
-      maxTextSize: 1000000,
-      flowchart: {{ useMaxWidth: false }}
+
+    const rawMmd = document.getElementById('raw-mmd').textContent.trim();
+    let currentDir = rawMmd.match(/^graph\\s+(TD|TB|LR|RL|BT)/)?.[1] || 'TD';
+    let spacing = 60;
+    let panZoomInstance = null;
+
+    async function renderDiagram() {{
+      const el = document.getElementById('diagram');
+      if (panZoomInstance) {{
+        panZoomInstance.destroy();
+        panZoomInstance = null;
+      }}
+      el.innerHTML = '';
+
+      mermaid.initialize({{
+        startOnLoad: false,
+        theme: 'dark',
+        maxEdges: 10000,
+        maxTextSize: 1000000,
+        flowchart: {{
+          useMaxWidth: false,
+          nodeSpacing: spacing,
+          rankSpacing: spacing * 1.5,
+          curve: 'basis'
+        }}
+      }});
+
+      const updatedMmd = rawMmd.replace(/^graph\\s+(TD|TB|LR|RL|BT)/, `graph ${{currentDir}}`);
+      const {{ svg }} = await mermaid.render('graphDiv_' + Date.now(), updatedMmd);
+      el.innerHTML = svg;
+
+      const svgEl = el.querySelector('svg');
+      svgEl.removeAttribute('style');
+      panZoomInstance = svgPanZoom(svgEl, {{
+        zoomEnabled: true,
+        panEnabled: true,
+        controlIconsEnabled: true,
+        maxZoom: 100,
+        minZoom: 0.05
+      }});
+
+      document.querySelectorAll('#toolbar button[data-dir]').forEach(btn => {{
+        btn.classList.toggle('active', btn.dataset.dir === currentDir);
+      }});
+    }}
+
+    document.querySelectorAll('#toolbar button[data-dir]').forEach(btn => {{
+      btn.addEventListener('click', () => {{
+        currentDir = btn.dataset.dir;
+        renderDiagram();
+      }});
     }});
-    const el = document.getElementById('diagram');
-    const {{ svg }} = await mermaid.render('graphDiv', el.textContent);
-    el.innerHTML = svg;
-    const svgEl = el.querySelector('svg');
-    svgEl.removeAttribute('style');
-    svgPanZoom(svgEl, {{ zoomEnabled: true, panEnabled: true, controlIconsEnabled: true, maxZoom: 100, minZoom: 0.05 }});
+
+    const slider = document.getElementById('spacing');
+    const spacingVal = document.getElementById('spacing-val');
+    slider.addEventListener('change', () => {{
+      spacing = parseInt(slider.value, 10);
+      spacingVal.textContent = spacing;
+      renderDiagram();
+    }});
+
+    renderDiagram();
   </script>
 </head>
 <body>
-  <div id="diagram">
-{mmd_code}
+  <div id="toolbar">
+    <span>Layout:</span>
+    <button data-dir="TD">Top-Down</button>
+    <button data-dir="LR">Left-Right</button>
+    <button data-dir="BT">Bottom-Up</button>
+    <button data-dir="RL">Right-Left</button>
+    <span style="margin-left:8px;">Spacing: <strong id="spacing-val">60</strong></span>
+    <input id="spacing" type="range" min="30" max="250" step="20" value="60">
   </div>
+  <script id="raw-mmd" type="text/plain">
+{mmd_code}
+  </script>
+  <div id="diagram"></div>
 </body>
 </html>
 """
